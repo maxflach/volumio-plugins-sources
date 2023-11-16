@@ -13,14 +13,15 @@ module.exports = volume;
 function volume(context) {
   var self = this;
 
-  this.context = context;
-  this.commandRouter = this.context.coreCommand;
-  this.logger = this.context.logger;
-  this.configManager = this.context.configManager;
+  self.context = context;
+  self.commandRouter = this.context.coreCommand;
+  self.logger = this.context.logger;
+  self.configManager = this.context.configManager;
 }
 
 volume.prototype.onVolumioStart = function () {
   var self = this;
+  // setup serial port connected to adc potentiometer
   self.serial = new SerialPort({
     path: "/dev/serial0",
     baudRate: 115200,
@@ -34,6 +35,7 @@ volume.prototype.onVolumioStart = function () {
   this.config = new (require("v-conf"))();
   this.config.loadFile(configFile);
 
+  // set default sound levels on other mixer
   execSync("/usr/bin/amixer -c 1 -M set Speaker 45%");
 
   return libQ.resolve();
@@ -44,17 +46,17 @@ volume.prototype.onStart = function () {
   var defer = libQ.defer();
 
   self.serial.on("error", function (err) {
-    console.log("Error serial: ", err.message);
+    self.logger.Error("Volume::Error serial: " + err.message);
   });
 
   self.serial.open(function (err) {
     if (err) {
-      return console.log("Error opening port: ", err.message);
+      return self.logger.Error("Volume::Error opening port: " + err.message);
       console.log(err);
     }
 
     // Because there's no callback to write, write errors will be emitted on the port:
-    console.log("port opened");
+    self.logger.info("Volume::port opened");
     //  port.write("main screen turn on");
     defer.resolve();
   });
@@ -65,46 +67,31 @@ volume.prototype.onStart = function () {
   let lastVolume = 0;
   let sending = false;
   parser.on("data", (data) => {
-    // console.log("parser data: ", data);
     const matches = data.match(re);
     self.serial.flush((err, res) => {
-      //console.log("Flush", err, res);
+      // flush serial so we don't get old messages
     });
     if (matches && matches.length > 1) {
       let inter = parseInt(matches[0], 10);
       let vol = parseInt(matches[1], 10);
-
+      // check its a new volume value
       if (lastInter !== inter) {
         let diff = Math.abs(vol - lastVolume);
         lastInter = inter;
         if (sending === false) {
+          // old potentiometer is sometimes jumping a bit
           if (diff > 3) {
             sending = true;
+            // since we dont use volumio to change the volume but go directly to the mixer we need our own top volume
             if (vol > 90) {
               vol = 90;
             }
             lastVolume = vol;
 
             exec(`/usr/bin/amixer -c 1 -M set Playback ${vol}%`, (err, res) => {
-              //console.log("volume changed", res);
+              self.logger.info("Volume::change volume changed to " + vol);
               sending = false;
             });
-
-            /*fetch(
-              "http://localhost:3000/api/v1/commands/?cmd=volume&volume=" +
-                lastVolume,
-              {
-                method: "GET",
-                headers: {},
-              }
-            )
-              .then((res) => res.json())
-              .then((resp) => {
-                console.log(resp);
-                sending = false;
-              })
-              .catch(console.error.bind(console)); */
-          }
         }
       }
     }
@@ -119,7 +106,7 @@ volume.prototype.onStop = function () {
   var self = this;
   var defer = libQ.defer();
   self.serial.close((err) => {
-    console.log("close error", err);
+    self.logger.Error("close error"+ err);
     defer.resolve();
   });
 
