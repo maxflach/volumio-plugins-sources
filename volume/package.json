@@ -1,0 +1,39 @@
+{
+	"name": "volume",
+	"version": "1.0.0",
+	"description": "Control volume",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"author": "Flach",
+	"license": "ISC",
+	"repository": "https://github.com/yourname/yourrepo",
+	"volumio_info": {
+		"prettyName": "volume",
+		"icon": "fa-lightbulb-o",
+		"plugin_type": "system_hardware",
+		"architectures": [
+			"amd64",
+			"armhf",
+			"i386"
+		],
+		"os": [
+			"buster"
+		],
+		"details": "Lorem ipsum",
+		"changelog": "Lorem ipsum"
+	},
+	"engines": {
+		"node": ">=14.15.4 <15.0.0",
+		"volumio": ">=3.546.0 <4.0.0"
+	},
+	"dependencies": {
+		"fs-extra": "^0.28.0",
+		"kew": "^0.7.0",
+		"node-fetch": "^2.7.0",
+		"serialport": "^12.0.0",
+		"socket.io-client": "^4.7.2",
+		"v-conf": "^1.4.0"
+	}
+}
