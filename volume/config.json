@@ -1,3 +1,14 @@
 {
- 
+  "mixerId": {
+    "type": "number",
+    "value": 1
+  },
+  "mixerName": {
+    "type": "string",
+    "value": "Speaker"
+  },
+  "defaultVolume": {
+    "type": "number",
+    "value": 50
+  }
 }

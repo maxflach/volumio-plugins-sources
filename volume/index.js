@@ -2,9 +2,9 @@
 
 var libQ = require("kew");
 var fs = require("fs-extra");
-var config = new (require("v-conf"))();
+//var config = new (require("v-conf"))();
 var exec = require("child_process").exec;
-var execSync = require("child_process").execSync;
+const execSync = require("child_process").execSync;
 const { SerialPort } = require("serialport");
 const { ReadlineParser } = require("@serialport/parser-readline");
 const fetch = require("node-fetch");
@@ -36,7 +36,37 @@ volume.prototype.onVolumioStart = function () {
   this.config.loadFile(configFile);
 
   // set default sound levels on other mixer
-  execSync("/usr/bin/amixer -c 1 -M set Speaker 45%");
+  try {
+    const cmd = `/usr/bin/amixer -c ${
+      self.config.get("mixerId").value
+    } -M set ${self.config.get("mixerName")} ${self.config.get(
+      defaultVolume
+    )}%`;
+    self.logger.info("Volume:: " + cmd);
+    execSync(cmd);
+  } catch (err) {
+    this.logger.error(err);
+  }
+
+  try {
+    const result = execSync("/usr/bin/aplay -l").toString().split("\n");
+    self.cards = result
+      .map((item) => {
+        const matchRe = /^card.([0-9])\:.([a-z0-9\s]+)\[([0-9a-z\-]+)/i;
+        const matches = item.match(matchRe);
+        if (matches) {
+          return {
+            value: parseInt(matches[1], 10),
+            label: `${matches[2].trim(" ")} ${matches[3]}`,
+          };
+        } else {
+          return false;
+        }
+      })
+      .filter((item) => item);
+  } catch (err) {
+    this.logger.error(err);
+  }
 
   return libQ.resolve();
 };
@@ -44,15 +74,20 @@ volume.prototype.onVolumioStart = function () {
 volume.prototype.onStart = function () {
   var self = this;
   var defer = libQ.defer();
+  var configFile = this.commandRouter.pluginManager.getConfigurationFile(
+    this.context,
+    "config.json"
+  );
+  this.config = new (require("v-conf"))();
+  this.config.loadFile(configFile);
 
   self.serial.on("error", function (err) {
-    self.logger.Error("Volume::Error serial: " + err.message);
+    self.logger.error("Volume::Error serial: " + err.message);
   });
 
   self.serial.open(function (err) {
     if (err) {
-      return self.logger.Error("Volume::Error opening port: " + err.message);
-      console.log(err);
+      return self.logger.error("Volume::Error opening port: " + err.message);
     }
 
     // Because there's no callback to write, write errors will be emitted on the port:
@@ -79,7 +114,6 @@ volume.prototype.onStart = function () {
         let diff = Math.abs(vol - lastVolume);
         lastInter = inter;
         if (sending === false) {
-          // old potentiometer is sometimes jumping a bit
           if (diff > 3) {
             sending = true;
             // since we dont use volumio to change the volume but go directly to the mixer we need our own top volume
@@ -87,11 +121,20 @@ volume.prototype.onStart = function () {
               vol = 90;
             }
             lastVolume = vol;
-
-            exec(`/usr/bin/amixer -c 1 -M set Playback ${vol}%`, (err, res) => {
-              self.logger.info("Volume::change volume changed to " + vol);
-              sending = false;
-            });
+            try {
+              exec(
+                `/usr/bin/amixer -c ${
+                  self.config.get("mixerId").value
+                } -M set Playback ${vol}%`,
+                (err, res) => {
+                  self.logger.info("Volume::change volume changed to " + vol);
+                  sending = false;
+                }
+              );
+            } catch (err) {
+              self.logger.error(err);
+            }
+          }
         }
       }
     }
@@ -106,7 +149,7 @@ volume.prototype.onStop = function () {
   var self = this;
   var defer = libQ.defer();
   self.serial.close((err) => {
-    self.logger.Error("close error"+ err);
+    self.logger.error("close error" + err);
     defer.resolve();
   });
 
@@ -136,12 +179,16 @@ volume.prototype.getUIConfig = function () {
       __dirname + "/UIConfig.json"
     )
     .then(function (uiconf) {
+      uiconf.sections[0].content[0].options = self.cards;
+      uiconf.sections[0].content[0].value = self.config.get("mixerId");
+      uiconf.sections[0].content[1].value = self.config.get("mixerName");
+      uiconf.sections[0].content[2].value = self.config.get("defaultVolume");
+
       defer.resolve(uiconf);
     })
     .fail(function () {
       defer.reject(new Error());
     });
-
   return defer.promise;
 };
 
@@ -159,7 +206,16 @@ volume.prototype.getConf = function (varName) {
   //Perform your installation tasks here
 };
 
-volume.prototype.setConf = function (varName, varValue) {
+volume.prototype.setConf = function (data) {
   var self = this;
+  //Perform your installation tasks here
+};
+
+volume.prototype.updateConfig = function (data) {
+  var self = this;
+  self.logger.info("Volume::setConf");
+  for (var key in data) {
+    self.config.set(key, data[key]);
+  }
   //Perform your installation tasks here
 };
