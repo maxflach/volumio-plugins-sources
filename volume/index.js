@@ -40,7 +40,7 @@ volume.prototype.onVolumioStart = function () {
     const cmd = `/usr/bin/amixer -c ${
       self.config.get("mixerId").value
     } -M set ${self.config.get("mixerName")} ${self.config.get(
-      defaultVolume
+      "defaultVolume"
     )}%`;
     self.logger.info("Volume:: " + cmd);
     execSync(cmd);
